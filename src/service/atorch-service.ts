@@ -88,7 +88,8 @@ export class AtorchService {
     try {
       const packet = readPacket(block);
       this.events.emit(EVENT_PACKET, packet);
-    } catch {
+    } catch (err) {
+      console.error(err);
       this.events.emit(EVENT_FAILED, block);
     }
   }
