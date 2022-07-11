@@ -21,7 +21,7 @@ request.onupgradeneeded = function (event) {
   if (!db) {
     return;
   }
-  db.createObjectStore(STORE_LABEL);
+  db.createObjectStore(STORE_LABEL, { keyPath: 'timestamp' });
 };
 
 request.onsuccess = function (event) {
@@ -29,7 +29,7 @@ request.onsuccess = function (event) {
 };
 
 request.onerror = function (event) {
-  console.error((<any>event).message);
+  console.error(event);
 }
 
 export const setConnected = create<boolean>('SET_CONNECTED');
@@ -143,20 +143,17 @@ const getAllStoreData = () => {
 const insertToDB = (packet: ReturnType<typeof readPacket>) => {
   if (!db) return;
   const transaction = db.transaction(STORE_LABEL, 'readwrite');
-  transaction.oncomplete = function (_event) {
-    //console.log('[insertToDB] transaction saved');
-  };
   transaction.onerror = function (event) {
-    console.error(`[insertToDB] transaction failed ${(<any>event).message}`);
+    console.error('[insertToDB] transaction failed', event);
   };
   const store = transaction.objectStore(STORE_LABEL);
 
   // packet: DCMeterPacket, key: Unix time
-  const addRequest = store.add({...packet, timestamp: Date.now()}, Date.now());
+  const addRequest = store.add({...packet, timestamp: Date.now()});
   addRequest.onsuccess = function (_event) {
     //console.log(`[insertToDB] put value to ${DB_LABEL}.${STORE_LABEL}`);
   };
   addRequest.onerror = function (event) {
-    console.error(`[insertToDB] error occured on putting, msg ${(<any>event).message}`);
+    console.error('[insertToDB] error occured on putting, msg', event);
   };
 }
