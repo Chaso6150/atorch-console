@@ -19,10 +19,13 @@ export const AtorchConsole: React.FC = () => {
         </Button>
       </Row>
       <PrintReport packet={latest} />
-      <Row className='ml-2 justify-content-center'>
+      <Row className='mt-2 justify-content-start'>
         <Button onClick={onDownloadCSV}>
-          hoge
+          ダウンロード
         </Button>
+        <div>
+          これまでにブラウザに貯められたログを全部CSVに書き出す
+        </div>
       </Row>
     </Container>
   );

@@ -1,13 +1,17 @@
 import actionCreatorFactory from 'typescript-fsa';
 import { asyncFactory } from 'typescript-fsa-redux-thunk';
 import { AtorchService } from '../service/atorch-service';
-import { PacketType, readPacket } from '../service/atorch-packet';
+import { DCMeterPacket, PacketType, readPacket } from '../service/atorch-packet';
 
 const create = actionCreatorFactory('ATORCH');
 const createAsync = asyncFactory(create);
 
 const DB_LABEL = 'atorch_log';
 const STORE_LABEL = 'dc_meter_values';
+
+interface ExtendedDCMeterPacket extends DCMeterPacket {
+  timestamp: number;
+}
 
 let db: IDBDatabase | null = null;
 const request = window.indexedDB.open(DB_LABEL, 1);
@@ -59,9 +63,34 @@ export const sendCommand = createAsync('SEND_COMMAND', async (block: Buffer | un
 });
 
 export const downloadCSV = createAsync('DOWNLOAD_CSV', async () => {
+  /*
+   * Unix timestamp -> 'YY-MM-DD HH:mm:ss'
+   */
+  const formatDate = (d: number) => {
+    const date = new Date(d);
+    return `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()} ${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`;
+  };
   try {
     const data = await getAllStoreData();
-    console.log(data);
+    if (data === null) {
+      return Promise.reject('data was null');
+    }
+
+    // sort -> csv format -> join
+    const str = data
+    .sort((a,b) => a.timestamp - b.timestamp)
+    .map((d) => {
+      return `${formatDate(d.timestamp)},${d.mVoltage},${d.mAmpere},${d.mWh},${d.mWatt},${d.fee},${d.temperature},${d.duration}`;
+    })
+    .join('\n');
+
+     const headerStr = 'timestamp,mVoltage,mAmpere,mWh,mWatt,fee,temperature,duration\n';
+
+    // download
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([headerStr, str], { type: 'text/csv' }));
+    a.download = `${STORE_LABEL}.csv`;
+    a.click();
   } catch (err) {
     console.log('[downloadCSV] getAllStoreData() failed', err);
   }
@@ -69,15 +98,24 @@ export const downloadCSV = createAsync('DOWNLOAD_CSV', async () => {
 });
 
 const getAllStoreData = () => {
-  if (!db) return;
+  if (!db) return null;
   const transaction = db.transaction(STORE_LABEL, 'readonly');
   transaction.onerror = function (event) {
     console.error('[getAllStoreData] transaction failed', event);
   };
   const pendingGetAll = transaction.objectStore(STORE_LABEL).getAll();
-  return new Promise((resolve, reject) => {
+  return new Promise<Array<ExtendedDCMeterPacket>>((resolve, reject) => {
     pendingGetAll.onsuccess = function (event) {
-      resolve(event);
+      if (event.target instanceof IDBRequest) {
+        const result = event.target.result;
+        if (Array.isArray(result)) {
+          resolve(result);
+        } else {
+          reject(new Error(`event was unexpected object: ${event.target}`));
+        }
+      } else {
+        reject(new Error('something wrong'));
+      }
     };
     pendingGetAll.onerror = function (event) {
       reject(event);
@@ -97,7 +135,7 @@ const insertToDB = (packet: ReturnType<typeof readPacket>) => {
   const store = transaction.objectStore(STORE_LABEL);
 
   // packet: DCMeterPacket, key: Unix time
-  const addRequest = store.add(packet, Date.now());
+  const addRequest = store.add({...packet, timestamp: Date.now()}, Date.now());
   addRequest.onsuccess = function (_event) {
     //console.log(`[insertToDB] put value to ${DB_LABEL}.${STORE_LABEL}`);
   };
