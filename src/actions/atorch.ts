@@ -97,6 +97,23 @@ export const downloadCSV = createAsync('DOWNLOAD_CSV', async () => {
   return;
 });
 
+export const clearStore = createAsync('CLEAR_STORE', async () => {
+  if (confirm('データベースを空にしてもいいですか？')) {
+    if (!db) return;
+    const transaction = db.transaction(STORE_LABEL, 'readwrite');
+    transaction.onerror = function (event) {
+      console.error('[clearStore] transaction failed', event);
+    };
+    const clearReq = transaction.objectStore(STORE_LABEL).clear();
+    clearReq.onsuccess = function (_event) {
+      alert('データベースを空にしました');
+    };
+    clearReq.onerror = function (event) {
+      alert(`データベースを空にできませんでした ${event}`);
+    };
+  }
+});
+
 const getAllStoreData = () => {
   if (!db) return null;
   const transaction = db.transaction(STORE_LABEL, 'readonly');
