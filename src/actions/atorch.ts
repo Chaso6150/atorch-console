@@ -17,7 +17,7 @@ request.onupgradeneeded = function (event) {
   if (!db) {
     return;
   }
-  const store = db.createObjectStore(STORE_LABEL);
+  db.createObjectStore(STORE_LABEL);
 };
 
 request.onsuccess = function (event) {
@@ -57,6 +57,33 @@ export const sendCommand = createAsync('SEND_COMMAND', async (block: Buffer | un
   const { atorch } = getState();
   return atorch?.sendCommand(block);
 });
+
+export const downloadCSV = createAsync('DOWNLOAD_CSV', async () => {
+  try {
+    const data = await getAllStoreData();
+    console.log(data);
+  } catch (err) {
+    console.log('[downloadCSV] getAllStoreData() failed', err);
+  }
+  return;
+});
+
+const getAllStoreData = () => {
+  if (!db) return;
+  const transaction = db.transaction(STORE_LABEL, 'readonly');
+  transaction.onerror = function (event) {
+    console.error('[getAllStoreData] transaction failed', event);
+  };
+  const pendingGetAll = transaction.objectStore(STORE_LABEL).getAll();
+  return new Promise((resolve, reject) => {
+    pendingGetAll.onsuccess = function (event) {
+      resolve(event);
+    };
+    pendingGetAll.onerror = function (event) {
+      reject(event);
+    };
+  });
+}
 
 const insertToDB = (packet: ReturnType<typeof readPacket>) => {
   if (!db) return;
